@@ -1,0 +1,115 @@
+{% load my_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    #card-element {
+      /* Стилизация контейнера карточки */
+      height: 100px;
+      width: 340px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px 0 rgba(0,0,0,0.2);
+    }
+
+</style>
+    <title>Корзина</title>
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+
+<body>
+    <h1>Корзина</h1>
+        {% for order_item in order.order_items.all %}
+            <div>
+                <p>Товар: {{ order_item.item.name }}</p>
+                <p>Количество: {{ order_item.quantity }}</p>
+                <p>Цена за единицу: {{ order_item.item.price }}</p>
+                <p>Общая цена: {{ order_item.get_cost }}</p>
+            </div>
+        {% endfor %}
+
+
+<!-- Секция для отображения скидок -->
+    {% if order.discount_set.all %}
+        <h2>Скидки</h2>
+        {% for discount in order.discount_set.all %}
+            <p>Скидка ({{ discount.rate }}%): {{ discount.amount|floatformat:2 }}</p>
+        {% endfor %}
+    {% endif %}
+
+<!-- Секция для отображения налогов -->
+    {% if order.tax_set.all %}
+        <h2>Налоги</h2>
+        {% for tax in order.tax_set.all %}
+            <p>Налог ({{ tax.rate }}%): {{ order.total_price|multiply:tax.rate|divide:100|floatformat:2 }}</p>
+        {% endfor %}
+    {% endif %}
+
+<p>Общая стоимость: {{ order.total_price }}</p>
+
+<form id="payment-form">
+    <div id="card-element"></div>
+    <!-- Кнопка для оформления заказа и очистки корзины -->
+    <div>
+        <button id="checkoutButton">Оформить заказ</button>
+        <button onclick="location.href='{% url 'clear_cart' %}'">Очистить корзину</button>
+    </div>
+</form>
+<script>
+    var stripe = Stripe('{{ stripe_public_key }}');
+    var elements = stripe.elements();
+    // Создайте экземпляр Card элемента и добавьте его в DOM
+    var cardElement = elements.create('card');
+    cardElement.mount('#card-element');
+    var stripe = Stripe('{{ stripe_public_key }}');
+    var elements = stripe.elements();
+    var card = elements.create('card');
+    card.mount('#card-element');
+
+    // Обработка формы оплаты
+    var form = document.getElementById('payment-form');
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        fetch('/simple_app/create-checkout-session-for-order/{{ order.id }}/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Сетевая ошибка');
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data.client_secret) {
+                throw new Error('Отсутствует client_secret в ответе сервера');
+            }
+            return stripe.confirmCardPayment(data.client_secret, {
+                payment_method: {
+                    card: card,
+                    billing_details: {
+                        name: 'Jenny Rosen'
+                        },
+                    },
+                });
+            })
+        .then(function(result) {
+                if (result.error) {
+                    alert(result.error.message);
+                } else {
+                    if (result.paymentIntent.status === 'succeeded') {
+                        window.location.href = '/payment-success/';  // Перенаправление при успехе
+                    }
+                }
+            })
+            .catch(function(error) {
+                console.error('Error:', error);
+            });
+        });
+</script>
+</body>
+</html>

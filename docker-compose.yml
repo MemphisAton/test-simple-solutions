@@ -1,0 +1,28 @@
+version: '3.10'
+
+services:
+  web:
+    build: .
+    command: gunicorn Simple_solutions.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - .env
+
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - static_volume:/app/static
+      - media_volume:/app/media
+      - ./nginx:/etc/nginx/conf.d
+    depends_on:
+      - web
+
+volumes:
+  static_volume:
+  media_volume:

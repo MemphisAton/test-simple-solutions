@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    #card-element {
+    /* Стилизация контейнера карточки */
+      height: 100px;
+      width: 340px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px 0 rgba(0,0,0,0.2);
+    }
+      .toast {
+      visibility: hidden;
+      min-width: 250px;
+      margin-left: -125px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 2px;
+      padding: 16px;
+      position: fixed;
+      z-index: 1;
+      left: 50%;
+      bottom: 30px;
+      font-size: 17px;
+    }
+    .toast.show {
+      visibility: visible;
+      -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+    @-webkit-keyframes fadein {
+      from {bottom: 0; opacity: 0;}
+      to {bottom: 30px; opacity: 1;}
+    }
+    @keyframes fadein {
+      from {bottom: 0; opacity: 0;}
+      to {bottom: 30px; opacity: 1;}
+    }
+    @-webkit-keyframes fadeout {
+      from {bottom: 30px; opacity: 1;}
+      to {bottom: 0; opacity: 0;}
+    }
+    @keyframes fadeout {
+      from {bottom: 30px; opacity: 1;}
+      to {bottom: 0; opacity: 0;}
+    }
+</style>
+    <title>{{ item.name }}</title>
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+
+<body>
+    <h1>{{ item.name }}</h1>
+    <p>{{ item.description }}</p>
+    <p>Цена: {{ item.price }} {{ item.currency }}</p>
+
+    <div id="toast" class="toast">Товар добавлен в корзину!</div>
+    <div id="card-errors" role="alert"></div>
+
+<form id="payment-form">
+    <div id="card-element"></div>
+    <!-- Кнопка Купить -->
+    <button id="buyButton" type="submit">Купить</button>
+</form>
+
+    <!-- Кнопка Добавить в корзину -->
+    <button id="addToCartButton">Добавить в корзину</button>
+    <!-- Кнопка Перейти в корзину -->
+    <button id="goToCartButton" onclick="window.location.href = '/simple_app/cart/';">Перейти в корзину</button>
+
+<script>
+    var stripe = Stripe('{{ stripe_public_key }}');
+    var elements = stripe.elements();
+
+// Создайте экземпляр Card элемента и добавьте его в DOM
+    var cardElement = elements.create('card');
+    cardElement.mount('#card-element');
+
+    document.getElementById('addToCartButton').addEventListener('click', function() {
+    fetch('/simple_app/add-to-order/{{ item.id }}/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ quantity: 1 }) // Пример тела запроса
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            throw new Error('Ошибка при добавлении товара в корзину');
+        }
+        return response.json(); // Ожидаем JSON-ответ
+    })
+    .then(function(data) {
+        var toast = document.getElementById("toast");
+        toast.textContent = data.message; // Отображаем сообщение из ответа сервера
+        toast.classList.add("show"); // Добавляем класс для отображения toast
+        setTimeout(function() {
+            toast.classList.remove("show"); // Удаляем класс через 3 секунды
+        }, 3000); // Указываем таймер на 3 секунды
+    })
+    .catch(function(error) {
+        console.error('Ошибка:', error);
+    });
+});
+
+document.getElementById('goToCartButton').addEventListener('click', function() {
+// Код для перехода в корзину
+    window.location.href = '/simple_app/cart/';
+});
+
+    var stripe = Stripe('{{ stripe_public_key }}');
+    var elements = stripe.elements();
+    var card = elements.create('card');
+    card.mount('#card-element');
+
+// Обработка формы оплаты
+    var form = document.getElementById('payment-form');
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        fetch('/simple_app/create-payment-intent/{{ item.id }}/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+        })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('Сетевая ошибка');
+            }
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data.client_secret) {
+                throw new Error('Отсутствует client_secret в ответе сервера');
+            }
+            return stripe.confirmCardPayment(data.client_secret, {
+                payment_method: {
+                    card: card,
+                    billing_details: {
+                        name: 'Jenny Rosen'
+                    },
+                }
+            });
+        })
+        .then(function(result) {
+                if (result.error) {
+                    alert(result.error.message);
+                } else {
+                    if (result.paymentIntent.status === 'succeeded') {
+                        window.location.href = '/payment-success/';  // Перенаправление при успехе
+                    }
+                }
+        })
+        .catch(function(error) {
+            console.error('Ошибка:', error);
+            var errorElement = document.getElementById('card-errors');
+            errorElement.textContent = error.message;
+        });
+    });
+</script>
+</body>
+</html>
