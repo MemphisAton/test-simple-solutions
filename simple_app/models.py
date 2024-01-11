@@ -3,10 +3,20 @@ from django.db import models
 
 
 class Item(models.Model):
+    USD = 'USD'
+    EUR = 'EUR'
+    CURRENCY_CHOICES = [
+        (USD, 'US Dollar'),
+        (EUR, 'Euro'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3)  # Например, 'USD'
+    currency = models.CharField(max_length=3,
+                                choices=CURRENCY_CHOICES,
+                                default=USD
+                                )
 
 
 class Order(models.Model):
@@ -39,7 +49,6 @@ class OrderItem(models.Model):
 
     def get_cost(self):
         return self.item.price * self.quantity
-
 
 
 def create_payment_intent(order):
