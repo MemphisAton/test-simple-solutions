@@ -5,12 +5,28 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from rest_framework.parsers import JSONParser
 
 from config import load_config
 from .models import Item
 from .models import OrderItem, Order
+from .serializers import ItemSerializer
 
 config = load_config(path='.env')
+
+
+@csrf_exempt
+def create_item(request):
+    '''
+    для обработки POST запроса на создание item
+    '''
+    if request.method == 'POST':
+        data = JSONParser().parse(request)
+        serializer = ItemSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(serializer.data, status=201)
+        return JsonResponse(serializer.errors, status=400)
 
 
 def item_detail(request, id):
